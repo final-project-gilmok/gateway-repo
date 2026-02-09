@@ -1,0 +1,32 @@
+server:
+  port: 8080  # 내부 포트 (Nginx가 여기로 보냄)
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      routes:
+        # [1] 인증 서버로 가는 길
+        - id: auth
+          uri: ${AUTH_SERVER_URL:http://localhost:9000} # 환경변수 없으면 로컬 9000
+          predicates:
+            - Path=/api/auth/**
+
+        # [2] 메인 API 서버로 가는 길
+        - id: api
+          uri: ${API_SERVER_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment} # (선택) 뒷단에는 /api 떼고 보냄
+
+      # 모든 요청에 기본으로 적용할 필터 (CORS 등)
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus # 모니터링용
