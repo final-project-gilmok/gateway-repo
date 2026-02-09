@@ -24,6 +24,18 @@ spring:
       # 모든 요청에 기본으로 적용할 필터 (CORS 등)
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+      # [추가] CORS 설정 (프론트엔드 접속 허용)
+      globalcors:
+        cors-configurations:
+          '[/**]': # 모든 주소에 대해
+            allowedOrigins: "*" # (보안상 나중엔 프론트 주소로 바꿔야 함)
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
 
 management:
   endpoints:
