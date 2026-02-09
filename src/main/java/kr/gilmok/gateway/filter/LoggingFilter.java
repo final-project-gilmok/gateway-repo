@@ -17,31 +17,34 @@ public class LoggingFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 1. Trace ID 생성 (이미 있으면 그거 쓰고, 없으면 새로 발급)
+        // 1. Trace ID 생성 (기존 값 있으면 유지, 없으면 새로 생성)
         String traceId = exchange.getRequest().getHeaders().getFirst("X-Trace-Id");
         if (traceId == null || traceId.isEmpty()) {
-            traceId = UUID.randomUUID().toString().substring(0, 8); // 짧게 8자리만
+            traceId = UUID.randomUUID().toString().substring(0, 8);
         }
 
-        // 2. 요청 로그 찍기 (Gateway 진입)
+        // 2. 요청 로그
         String path = exchange.getRequest().getURI().getPath();
-        log.info("[{}] ➡️ Request: path={}", traceId, path);
+        log.info("[{}] ➡️ Request: method={} path={}", traceId, exchange.getRequest().getMethod(), path);
 
-        // 3. 뒷단 서버(API, Auth)로 Trace ID 전달
+        // 3. 뒷단 서버로 Trace ID 전달 (헤더 덮어쓰기 방식 적용)
+        String finalTraceId = traceId;
         ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
-                .header("X-Trace-Id", traceId)
+                .headers(httpHeaders -> httpHeaders.set("X-Trace-Id", finalTraceId)) // [수정됨] set으로 명확하게 교체
                 .build();
 
-        // 4. 응답 로그 찍기 (나갈 때)
-        String finalTraceId = traceId;
+        // 4. 응답 로그 (성공/실패 상관없이 무조건 실행)
         return chain.filter(exchange.mutate().request(modifiedRequest).build())
-                .then(Mono.fromRunnable(() -> {
-                    log.info("[{}] ⬅️ Response: status={}", finalTraceId, exchange.getResponse().getStatusCode());
-                }));
+                .doFinally(signalType -> { // [수정됨] then -> doFinally로 변경
+                    log.info("[{}] ⬅️ Response: status={} (signal={})",
+                            finalTraceId,
+                            exchange.getResponse().getStatusCode(),
+                            signalType); // 정상(ON_COMPLETE)인지 에러(ON_ERROR)인지도 표시
+                });
     }
 
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE; // 제일 먼저 실행되어야 함
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 }
