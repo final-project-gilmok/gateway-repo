@@ -31,10 +31,22 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
+            # 1. Origin 구체적으로 명시 (보안 + Credentials 호환)
+            # 개발용이라면 패턴 사용 가능
+            allowedOriginPatterns:
+              - "http://localhost:3000"
+              - "http://localhost:*"
+
+            # 2. 메서드는 리스트로 분리 (문자열 X)
             allowedMethods:
-              - GET, POST, PUT, DELETE, OPTIONS
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+
             allowedHeaders: "*"
+            allowCredentials: true # 프론트와 쿠키/토큰 주고받으려면 필수
 
 management:
   endpoints:

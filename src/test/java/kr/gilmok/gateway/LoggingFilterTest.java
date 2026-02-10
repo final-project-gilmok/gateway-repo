@@ -15,6 +15,9 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +49,8 @@ class LoggingFilterTest {
 
         // then
         // save() 메서드가 한 번이라도 호출되었는지 확인
-        verify(requestLogRepository).save(any(RequestLog.class));
+        await().atMost(1, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(requestLogRepository).save(any(RequestLog.class));
+        });
     }
 }

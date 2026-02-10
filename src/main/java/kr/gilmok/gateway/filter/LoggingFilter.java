@@ -11,6 +11,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -72,14 +73,16 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                             .build();
 
                     // 7. DB 저장 및 응답 로그 출력
-                    try {
-                        requestLogRepository.save(logEntity);
-
-                        // [개선됨] 응답 로그 출력 (Key-Value 포맷)
-                        log.info("type=RESPONSE traceId={} status={} latency={}ms", finalTraceId, status, duration);
-                    } catch (Exception e) {
-                        log.error("type=ERROR traceId={} msg={}", finalTraceId, e.getMessage());
-                    }
+                    Mono.fromRunnable(() -> {
+                                try {
+                                    requestLogRepository.save(logEntity);
+                                    log.info("type=RESPONSE traceId={} status={} latency={}ms", finalTraceId, status, duration);
+                                } catch (Exception e) {
+                                    log.error("type=ERROR traceId={} msg={}", finalTraceId, e.getMessage());
+                                }
+                            })
+                            .subscribeOn(Schedulers.boundedElastic()) // 👈 여기서 별도 스레드로 격리됨
+                            .subscribe(); // 실행!
                 });
     }
 
