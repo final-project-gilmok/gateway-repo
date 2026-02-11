@@ -1,0 +1,18 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    # 운영 환경에서는 Docker 컨테이너 이름(mysql-server) 사용
+    url: jdbc:mysql://${DB_URL:mysql-server}:3306/gilmok_db
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # 운영에선 스키마 변경 금지 (안전제일)
+    properties:
+      hibernate:
+        format_sql: false # 운영 로그 깔끔하게

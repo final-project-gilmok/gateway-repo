@@ -1,44 +1,58 @@
 server:
-  port: 8080  # 내부 포트 (Nginx가 여기로 보냄)
+  port: 8080
 
 spring:
+  profiles:
+    active: dev
+
   application:
     name: gateway
+
   cloud:
     gateway:
       routes:
-        # [1] 인증 서버로 가는 길
+        # [1] 인증 서버
         - id: auth
-          uri: ${AUTH_SERVER_URL:http://localhost:9000} # 환경변수 없으면 로컬 9000
+          uri: ${AUTH_SERVER_URL:http://localhost:9000}
           predicates:
             - Path=/api/auth/**
 
-        # [2] 메인 API 서버로 가는 길
+        # [2] 메인 API 서버
         - id: api
           uri: ${API_SERVER_URL:http://localhost:8081}
           predicates:
             - Path=/api/**
           filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment} # (선택) 뒷단에는 /api 떼고 보냄
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
 
-      # 모든 요청에 기본으로 적용할 필터 (CORS 등)
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
-      # [추가] CORS 설정 (프론트엔드 접속 허용)
+
       globalcors:
         cors-configurations:
-          '[/**]': # 모든 주소에 대해
-            allowedOrigins: "*" # (보안상 나중엔 프론트 주소로 바꿔야 함)
+          '[/**]':
+            # 1. Origin 구체적으로 명시 (보안 + Credentials 호환)
+            # 개발용이라면 패턴 사용 가능
+            allowedOriginPatterns:
+              - "http://localhost:3000"
+              - "http://localhost:*"
+
+            # 2. 메서드는 리스트로 분리 (문자열 X)
             allowedMethods:
               - GET
               - POST
               - PUT
               - DELETE
               - OPTIONS
+
             allowedHeaders: "*"
+            allowCredentials: true # 프론트와 쿠키/토큰 주고받으려면 필수
 
 management:
   endpoints:
     web:
       exposure:
-        include: health, info, prometheus # 모니터링용
+        include: health, info, prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

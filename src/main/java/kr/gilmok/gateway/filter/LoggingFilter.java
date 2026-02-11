@@ -1,5 +1,8 @@
 package kr.gilmok.gateway.filter;
 
+import kr.gilmok.gateway.entity.RequestLog;
+import kr.gilmok.gateway.repository.RequestLogRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -8,38 +11,75 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class LoggingFilter implements GlobalFilter, Ordered {
+
+    private final RequestLogRepository requestLogRepository;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 1. Trace ID 생성 (기존 값 있으면 유지, 없으면 새로 생성)
+        // 1. Trace ID 생성
         String traceId = exchange.getRequest().getHeaders().getFirst("X-Trace-Id");
         if (traceId == null || traceId.isEmpty()) {
             traceId = UUID.randomUUID().toString().substring(0, 8);
         }
 
-        // 2. 요청 로그
+        // 2. 요청 정보 추출 및 시각 기록
         String path = exchange.getRequest().getURI().getPath();
-        log.info("[{}] ➡️ Request: method={} path={}", traceId, exchange.getRequest().getMethod(), path);
+        String method = exchange.getRequest().getMethod().name();
 
-        // 3. 뒷단 서버로 Trace ID 전달 (헤더 덮어쓰기 방식 적용)
+        // [핵심 수정] 요청 시작 시각 미리 캡처 (응답 시각 X -> 요청 시각 O)
+        LocalDateTime requestTime = LocalDateTime.now();
+
         String finalTraceId = traceId;
+        String tokenStatus = "UNKNOWN"; // 추후 연동
+        Integer policyVersion = 1;
+
+        // 3. Trace ID 헤더 전달
         ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
-                .headers(httpHeaders -> httpHeaders.set("X-Trace-Id", finalTraceId)) // [수정됨] set으로 명확하게 교체
+                .headers(httpHeaders -> httpHeaders.set("X-Trace-Id", finalTraceId))
                 .build();
 
-        // 4. 응답 로그 (성공/실패 상관없이 무조건 실행)
+        // 4. 요청 로그 (Loki용 포맷)
+        log.info("type=REQUEST traceId={} method={} path={}", finalTraceId, method, path);
+        long startTime = System.currentTimeMillis();
+
         return chain.filter(exchange.mutate().request(modifiedRequest).build())
-                .doFinally(signalType -> { // [수정됨] then -> doFinally로 변경
-                    log.info("[{}] ⬅️ Response: status={} (signal={})",
-                            finalTraceId,
-                            exchange.getResponse().getStatusCode(),
-                            signalType); // 정상(ON_COMPLETE)인지 에러(ON_ERROR)인지도 표시
+                .doFinally(signalType -> {
+                    long duration = System.currentTimeMillis() - startTime;
+                    int status = (exchange.getResponse().getStatusCode() != null)
+                            ? exchange.getResponse().getStatusCode().value() : 500;
+
+                    // [핵심 수정] 블로킹 I/O(DB 저장)를 별도 스레드(boundedElastic)로 격리
+                    Mono.fromRunnable(() -> {
+                                try {
+                                    RequestLog logEntity = RequestLog.builder()
+                                            .requestId(finalTraceId)
+                                            .path(path)
+                                            .method(method)
+                                            .status(status)
+                                            .latencyMs(duration)
+                                            .timestamp(requestTime) // [핵심 수정] 아까 캡처한 요청 시각 사용
+                                            .tokenStatus(tokenStatus)
+                                            .policyVersion(policyVersion)
+                                            .build();
+
+                                    requestLogRepository.save(logEntity); // 여기서 블로킹 발생 -> 안전하게 격리됨
+
+                                    log.info("type=RESPONSE traceId={} status={} latency={}ms", finalTraceId, status, duration);
+                                } catch (Exception e) {
+                                    log.error("type=ERROR traceId={} msg={}", finalTraceId, e.getMessage());
+                                }
+                            })
+                            .subscribeOn(Schedulers.boundedElastic()) // [중요] Netty 스레드 보호
+                            .subscribe();
                 });
     }
 
