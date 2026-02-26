@@ -26,16 +26,15 @@ spring:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
 
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+          # ⭐️ 수정 1. RETAIN_UNIQUE를 맨 끝에 추가 (중복 헤더 발생 시 하나만 남김)
+          - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
 
       globalcors:
         cors-configurations:
           '[/**]':
-            # 1. Origin 구체적으로 명시 (보안 + Credentials 호환)
-            # 개발용이라면 패턴 사용 가능
             allowedOriginPatterns:
-              - "http://localhost:3000"
-              - "http://localhost:*"
+              # ⭐️ 수정 2. 기존 로컬호스트 하드코딩을 지우고 환경변수 문법으로 변경
+              - "${FRONTEND_URL:http://localhost:3000}"
 
             # 2. 메서드는 리스트로 분리 (문자열 X)
             allowedMethods:
@@ -46,8 +45,7 @@ spring:
               - OPTIONS
 
             allowedHeaders: "*"
-            allowCredentials: true # 프론트와 쿠키/토큰 주고받으려면 필수
-
+            allowCredentials: true
 management:
   endpoints:
     web:
