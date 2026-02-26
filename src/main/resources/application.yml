@@ -20,9 +20,7 @@ spring:
           uri: ${API_SERVER_URL:http://localhost:8081}
           predicates:
             - Path=/admin/**
-          filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment}
-
+            -
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
 
@@ -31,10 +29,8 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns:
-              - "http://localhost:3000"
-              - "http://localhost:3030"
-              - "${FRONTEND_URL:http://localhost:3030}"
+            # ⭐️ 쉼표로 구분된 문자열을 받아 여러 개의 패턴으로 인식하게 만듭니다
+            allowedOriginPatterns: "${FRONTEND_URL:http://localhost:3000,http://localhost:3030}"
 
             allowedMethods:
               - GET
