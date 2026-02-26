@@ -11,32 +11,31 @@ spring:
   cloud:
     gateway:
       routes:
-        # [1] 인증 서버
         - id: auth
           uri: ${AUTH_SERVER_URL:http://localhost:9000}
           predicates:
-            - Path=/api/auth/**
+            - Path=/auth/**
 
-        # [2] 메인 API 서버
         - id: api
           uri: ${API_SERVER_URL:http://localhost:8081}
           predicates:
-            - Path=/api/**
+            - Path=/admin/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
 
       default-filters:
-          # ⭐️ 수정 1. RETAIN_UNIQUE를 맨 끝에 추가 (중복 헤더 발생 시 하나만 남김)
-          - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
 
       globalcors:
+        # ⭐️ 위치 주의: cors-configurations 와 같은 줄(레벨)에 있어야 합니다!
+        add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
             allowedOriginPatterns:
-              # ⭐️ 수정 2. 기존 로컬호스트 하드코딩을 지우고 환경변수 문법으로 변경
-              - "${FRONTEND_URL:http://localhost:3000}"
+              - "http://localhost:3000"
+              - "http://localhost:3030"
+              - "${FRONTEND_URL:http://localhost:3030}"
 
-            # 2. 메서드는 리스트로 분리 (문자열 X)
             allowedMethods:
               - GET
               - POST
@@ -46,6 +45,7 @@ spring:
 
             allowedHeaders: "*"
             allowCredentials: true
+
 management:
   endpoints:
     web:
