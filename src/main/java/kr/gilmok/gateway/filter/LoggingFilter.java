@@ -55,6 +55,7 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                     int status = (exchange.getResponse().getStatusCode() != null)
                             ? exchange.getResponse().getStatusCode().value() : 500;
 
+                    // ⭐️ [핵심] DB 저장을 담당하는 내부 Mono 안에서만 onErrorResume을 처리하도록 위치를 변경!
                     return Mono.fromRunnable(() -> {
                                 try {
                                     RequestLog logEntity = RequestLog.builder()
@@ -71,16 +72,19 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                                     requestLogRepository.save(logEntity);
                                     log.info("type=RESPONSE traceId={} status={} latency={}ms", finalTraceId, status, duration);
                                 } catch (Exception e) {
+                                    // DB 저장 중 발생한 동기적 예외 처리
                                     log.error("type=ERROR traceId={} msg={}", finalTraceId, e.getMessage());
+                                    throw e; // 리액티브 체인으로 에러 전파
                                 }
                             })
                             .subscribeOn(Schedulers.boundedElastic())
-                            .then(); // ⭐️ [추가] Mono<Object>를 Mono<Void>로 변환!
-                }))
-                .onErrorResume(e -> {
-                    log.error("type=LOG_SAVE_ERROR traceId={} msg={}", finalTraceId, e.getMessage());
-                    return Mono.empty();
-                });
+                            .then() // Mono<Void> 변환
+                            // 👇 메인 체인이 아닌, 'DB 저장 Mono' 전용 에러 처리
+                            .onErrorResume(e -> {
+                                log.error("type=LOG_SAVE_ERROR traceId={} msg={}", finalTraceId, e.getMessage());
+                                return Mono.empty(); // DB 에러만 무시하고 메인 체인은 정상 종료
+                            });
+                }));
     }
 
     @Override
