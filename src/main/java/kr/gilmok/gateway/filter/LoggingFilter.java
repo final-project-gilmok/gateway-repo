@@ -34,10 +34,7 @@ public class LoggingFilter implements GlobalFilter, Ordered {
         // 2. 요청 정보 추출 및 시각 기록
         String path = exchange.getRequest().getURI().getPath();
         String method = exchange.getRequest().getMethod().name();
-
-        // [핵심 수정] 요청 시작 시각 미리 캡처 (응답 시각 X -> 요청 시각 O)
         LocalDateTime requestTime = LocalDateTime.now();
-
         String finalTraceId = traceId;
         String tokenStatus = "UNKNOWN"; // 추후 연동
         Integer policyVersion = 1;
@@ -51,14 +48,14 @@ public class LoggingFilter implements GlobalFilter, Ordered {
         log.info("type=REQUEST traceId={} method={} path={}", finalTraceId, method, path);
         long startTime = System.currentTimeMillis();
 
+        // 5. 체인 실행 후 DB 저장 로직을 메인 체인에 편입 (then 사용)
         return chain.filter(exchange.mutate().request(modifiedRequest).build())
-                .doFinally(signalType -> {
+                .then(Mono.defer(() -> {
                     long duration = System.currentTimeMillis() - startTime;
                     int status = (exchange.getResponse().getStatusCode() != null)
                             ? exchange.getResponse().getStatusCode().value() : 500;
 
-                    // [핵심 수정] 블로킹 I/O(DB 저장)를 별도 스레드(boundedElastic)로 격리
-                    Mono.fromRunnable(() -> {
+                    return Mono.fromRunnable(() -> {
                                 try {
                                     RequestLog logEntity = RequestLog.builder()
                                             .requestId(finalTraceId)
@@ -66,20 +63,23 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                                             .method(method)
                                             .status(status)
                                             .latencyMs(duration)
-                                            .timestamp(requestTime) // [핵심 수정] 아까 캡처한 요청 시각 사용
+                                            .timestamp(requestTime)
                                             .tokenStatus(tokenStatus)
                                             .policyVersion(policyVersion)
                                             .build();
 
-                                    requestLogRepository.save(logEntity); // 여기서 블로킹 발생 -> 안전하게 격리됨
-
+                                    requestLogRepository.save(logEntity);
                                     log.info("type=RESPONSE traceId={} status={} latency={}ms", finalTraceId, status, duration);
                                 } catch (Exception e) {
                                     log.error("type=ERROR traceId={} msg={}", finalTraceId, e.getMessage());
                                 }
                             })
-                            .subscribeOn(Schedulers.boundedElastic()) // [중요] Netty 스레드 보호
-                            .subscribe();
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .then(); // ⭐️ [추가] Mono<Object>를 Mono<Void>로 변환!
+                }))
+                .onErrorResume(e -> {
+                    log.error("type=LOG_SAVE_ERROR traceId={} msg={}", finalTraceId, e.getMessage());
+                    return Mono.empty();
                 });
     }
 

@@ -20,7 +20,6 @@ spring:
           uri: ${API_SERVER_URL:http://localhost:8081}
           predicates:
             - Path=/admin/**
-            -
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
 
