@@ -40,23 +40,14 @@ public class RequestLog {
     @Column(name = "latency_ms")
     private Long latencyMs;
 
-    @Column(name = "token_status", length = 20)
-    private String tokenStatus;       // 추가됨
-
-    @Column(name = "policy_version")
-    private Integer policyVersion;    // 추가됨
-
     @Builder
     public RequestLog(LocalDateTime timestamp, String requestId, String path,
-                      String method, Integer status, Long latencyMs,
-                      String tokenStatus, Integer policyVersion) {
+                      String method, Integer status, Long latencyMs) {
         this.timestamp = timestamp;
         this.requestId = requestId;
         this.path = path;
         this.method = method;
         this.status = status;
         this.latencyMs = latencyMs;
-        this.tokenStatus = tokenStatus;
-        this.policyVersion = policyVersion;
     }
 }
