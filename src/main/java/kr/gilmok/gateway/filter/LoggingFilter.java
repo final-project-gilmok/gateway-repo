@@ -1,5 +1,6 @@
 package kr.gilmok.gateway.filter;
 
+import io.micrometer.tracing.Tracer;
 import kr.gilmok.gateway.entity.RequestLog;
 import kr.gilmok.gateway.repository.RequestLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -22,13 +22,17 @@ import java.util.UUID;
 public class LoggingFilter implements GlobalFilter, Ordered {
 
     private final RequestLogRepository requestLogRepository;
+    private final Tracer tracer; // ✅ 수정 1: OTel Tracer 주입
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         // 1. Trace ID 생성
-        String traceId = exchange.getRequest().getHeaders().getFirst("X-Trace-Id");
+        // ✅ 수정 1: OTel이 생성한 Trace ID 재사용 (UUID 직접 생성 제거)
+        String traceId = (tracer.currentSpan() != null)
+                ? tracer.currentSpan().context().traceId()
+                : exchange.getRequest().getHeaders().getFirst("X-Trace-Id");
         if (traceId == null || traceId.isEmpty()) {
-            traceId = UUID.randomUUID().toString().substring(0, 8);
+            traceId = "unknown";
         }
 
         // 2. 요청 정보 추출 및 시각 기록
@@ -36,8 +40,6 @@ public class LoggingFilter implements GlobalFilter, Ordered {
         String method = exchange.getRequest().getMethod().name();
         LocalDateTime requestTime = LocalDateTime.now();
         String finalTraceId = traceId;
-        String tokenStatus = "UNKNOWN"; // 추후 연동
-        Integer policyVersion = 1;
 
         // 3. Trace ID 헤더 전달
         ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
@@ -65,8 +67,6 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                                             .status(status)
                                             .latencyMs(duration)
                                             .timestamp(requestTime)
-                                            .tokenStatus(tokenStatus)
-                                            .policyVersion(policyVersion)
                                             .build();
 
                                     requestLogRepository.save(logEntity);
