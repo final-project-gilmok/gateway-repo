@@ -14,6 +14,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -73,6 +74,7 @@ public class LoggingFilter implements GlobalFilter, Ordered {
                         }
                     })
                     .subscribeOn(Schedulers.boundedElastic())
+                    .timeout(Duration.ofSeconds(3))  // ← 여기 추가
                     .then()
                     .onErrorResume(e -> {
                         log.error("type=LOG_SAVE_ERROR traceId={} msg={}", finalTraceId, e.getMessage());

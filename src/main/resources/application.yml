@@ -29,7 +29,8 @@ spring:
         cors-configurations:
           '[/**]':
             # ⭐️ 쉼표로 구분된 문자열을 받아 여러 개의 패턴으로 인식하게 만듭니다
-            allowedOriginPatterns: "${FRONTEND_URL:http://localhost:3000,http://localhost:3030}"
+            allowedOriginPatterns:
+              - "${FRONTEND_URL:http://localhost:3030}"
 
             allowedMethods:
               - GET
@@ -40,6 +41,15 @@ spring:
 
             allowedHeaders: "*"
             allowCredentials: true
+  reactor:
+    netty:
+      worker:
+        count: 4  # Gateway 워커 스레드 수
+
+reactor:
+  schedulers:
+    defaultBoundedElasticSize: 30       # 최대 스레드 수
+    defaultBoundedElasticQueueSize: 100 # 대기 큐 크기 초과 시 에러
 
 management:
   endpoints:

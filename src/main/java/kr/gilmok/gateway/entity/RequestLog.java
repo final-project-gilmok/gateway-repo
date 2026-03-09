@@ -24,10 +24,6 @@ public class RequestLog {
     @Column(name = "request_id", length = 64)
     private String requestId;         // traceId -> requestId로 변경
 
-    // event_id는 외래키(FK)라면 연관관계 매핑 필요, 단순 값이면 Long
-    @Column(name = "event_id")
-    private Long eventId;
-
     @Column(length = 255)
     private String path;
 
