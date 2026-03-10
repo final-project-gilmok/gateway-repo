@@ -1,0 +1,65 @@
+name: Build & Push to GHCR
+
+on:
+  push:
+    branches: [ "main" ]
+
+# GHCR에 이미지를 올리려면 쓰기 권한(packages: write)이 필요함
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # 이미지를 올릴 경로: ghcr.io/github아이디/레포이름 (모두 소문자여야 함!)
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/gateway-repo
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 소스 가져오기
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # 2. JDK 설정 + 캐싱
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # 3. 빌드 (테스트 제외)
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build -x test
+
+      # 4. GHCR 로그인 (별도 Secret 필요 없음! 자동 토큰 사용)
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. 이미지 빌드 & 푸시
+      # 태그: ghcr.io/내아이디/프로젝트명:latest
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+
+      # 6. deploy-repo에 신호 보내기 (Secret: GITOPS_TOKEN 필요)
+      - name: Trigger Deploy Repo
+        if: success()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}
+          repository: Final-project-gilmok/deploy-repo
+          event-type: update-image
+          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server"}'

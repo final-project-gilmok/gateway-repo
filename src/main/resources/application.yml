@@ -1,0 +1,55 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: dev
+
+  application:
+    name: gateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: auth
+          uri: ${AUTH_SERVER_URL:http://localhost:9000}
+          predicates:
+            - Path=/auth/**
+
+        - id: api
+          uri: ${API_SERVER_URL:http://localhost:8081}
+          predicates:
+            - Path=/admin/**, /users/**
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+      globalcors:
+        # ⭐️ 위치 주의: cors-configurations 와 같은 줄(레벨)에 있어야 합니다!
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            # ⭐️ 쉼표로 구분된 문자열을 받아 여러 개의 패턴으로 인식하게 만듭니다
+            allowedOriginPatterns:
+              - "${FRONTEND_URL:http://localhost:3030}"
+
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+
+            allowedHeaders: "*"
+            allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
