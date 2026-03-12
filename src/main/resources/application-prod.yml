@@ -17,10 +17,3 @@ spring:
       hibernate:
         format_sql: false # 운영 로그 깔끔하게
 
-management:
-  otlp:
-    tracing:
-      # 1. 엔드포인트에서 /v1/traces 경로를 제거합니다 (gRPC는 경로가 필요 없음)
-      endpoint: http://tempo:4317
-      # 2. 통신 방식을 HTTP에서 gRPC로 변경합니다
-      transport: grpc
