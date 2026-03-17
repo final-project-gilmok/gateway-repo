@@ -19,7 +19,7 @@ spring:
         - id: api
           uri: ${API_SERVER_URL:http://localhost:8081}
           predicates:
-            - Path=/admin/**, /users/**, /events/**, /queue/**, /reservations/**
+            - Path=/admin/**, /users/**, /events/**, /queue/**, /reservations/**, /swagger-ui.html, /swagger-ui/**, /v3/api-docs, /v3/api-docs/**
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
 
