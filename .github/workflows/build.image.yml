@@ -3,6 +3,16 @@ name: Build & Push to GHCR
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deploy target (oci or aws)'
+        required: false
+        default: 'oci'
+        type: choice
+        options:
+          - oci
+          - aws
 
 # GHCR에 이미지를 올리려면 쓰기 권한(packages: write)이 필요함
 permissions:
@@ -62,4 +72,4 @@ jobs:
           token: ${{ secrets.GITOPS_TOKEN }}
           repository: final-project-gilmok/deploy-repo
           event-type: update-image
-          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server"}'
+          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server", "target": "${{ inputs.target || ''oci'' }}"}'
