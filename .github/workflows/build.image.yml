@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Deploy target (oci or aws)'
+        description: 'Deploy target (all, oci or aws)'
         required: false
-        default: 'oci'
+        default: 'all'
         type: choice
         options:
+          - all
           - oci
           - aws
 
