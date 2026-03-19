@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Deploy target (oci or aws)'
+        description: 'Deploy target (all, oci or aws)'
         required: false
-        default: 'oci'
+        default: 'all'
         type: choice
         options:
+          - all
           - oci
           - aws
 
@@ -64,12 +65,22 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:latest
 
-      # 6. deploy-repo에 신호 보내기 (Secret: GITOPS_TOKEN 필요)
-      - name: Trigger Deploy Repo
-        if: success()
+      # 6. deploy-repo에 신호 보내기 (OCI)
+      - name: Trigger Deploy Repo (OCI)
+        if: success() && (github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'oci')
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.GITOPS_TOKEN }}
           repository: final-project-gilmok/deploy-repo
           event-type: update-image
-          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server", "target": "${{ inputs.target || ''oci'' }}"}'
+          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server", "target": "oci"}'
+
+      # 7. deploy-repo에 신호 보내기 (AWS)
+      - name: Trigger Deploy Repo (AWS)
+        if: success() && (github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'aws')
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}
+          repository: final-project-gilmok/deploy-repo
+          event-type: update-image
+          client-payload: '{"image_tag": "latest", "image_url": "${{ env.IMAGE_NAME }}", "service_name": "gateway-server", "target": "aws"}'
